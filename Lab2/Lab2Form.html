@@ -4,32 +4,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lab #2</title>
-    <style>
-        .error {
-            background-color: red;
-        }
-    </style>
+    <title>Lab #2 Form</title>
+    <link rel="stylesheet" href="Lab2FormStyle.css">
     <script src="Lab2FormScript.js"></script>
 </head>
 
 <body>
-    <h1>Введіть інформацію:</h1>
+    <h2>Введіть інформацію:</h2>
     <form id="infoForm">
-        <label for="fullName">ПІБ:</label>
-        <input type="text" id="fullName" name="fullName"><br><br>
+        <div>
+            <label for="fullName">ПІБ:</label>
+            <input type="text" id="fullName" name="fullName"><br><br>
+        </div>
 
-        <label for="group">Група:</label>
-        <input type="text" id="group" name="group"><br><br>
+        <div>
+            <label for="group">Група:</label>
+            <input type="text" id="group" name="group"><br><br>
+        </div>
 
-        <label for="phone">Телефон:</label>
-        <input type="text" id="phone" name="phone"><br><br>
+        <div>
+            <label for="phone">Телефон:</label>
+            <input type="text" id="phone" name="phone"><br><br>
+        </div>
 
-        <label for="address">Адреса:</label>
-        <input type="text" id="address" name="address"><br><br>
+        <div>
+            <label for="address">Адреса:</label>
+            <input type="text" id="address" name="address"><br><br>
+        </div>
 
-        <label for="email">e-mail:</label>
-        <input type="text" id="email" name="email"><br><br>
+        <div>
+            <label for="email">e-mail:</label>
+            <input type="text" id="email" name="email"><br><br>
+        </div>
 
         <input type="submit" value="Перевірити">
     </form>
