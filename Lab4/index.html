@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Text Chat</title>
+    <link rel="stylesheet" href="public/index.css">
+</head>
+
+<body>
+
+    <h1>Простий текстовий чат</h1>
+    <div id="join-form">
+        <input id="username" type="text" placeholder="Введіть ваше ім'я">
+        <button id="join">Приєднатись</button>
+    </div>
+    <div id="chat" style="display: none;">
+        <ul id="messages"></ul>
+        <div id="message-form">
+            <input id="message" type="text" placeholder="Введіть ваше повідомлення">
+            <button id="send">Надіслати</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const joinForm = document.getElementById('join-form');
+        const chat = document.getElementById('chat');
+
+        document.getElementById('join').addEventListener('click', () => {
+            const username = document.getElementById('username').value;
+            if (username) {
+                socket.emit('new user', username);
+                joinForm.style.display = 'none';
+                chat.style.display = 'block';
+            }
+        });
+
+        socket.on('username taken', () => {
+            alert('Користувач з таким ім\'ям вже у чаті. Змініть ім\'я');
+        });
+
+        socket.on('user connected', (username) => {
+            document.getElementById('messages').innerHTML += `<li>${username} приєднався(лася) до розмови</li>`;
+        });
+
+        socket.on('chat message', (data) => {
+            document.getElementById('messages').innerHTML += `<li><strong>${data.username}:</strong> ${data.message}</li>`;
+        });
+
+        socket.on('user disconnected', (username) => {
+            document.getElementById('messages').innerHTML += `<li>${username} залишив(ла) чат</li>`;
+        });
+
+        document.getElementById('send').addEventListener('click', () => {
+            const message = document.getElementById('message').value;
+            socket.emit('chat message', message);
+            document.getElementById('message').value = '';
+        });
+    </script>
+</body>
+
+</html>
