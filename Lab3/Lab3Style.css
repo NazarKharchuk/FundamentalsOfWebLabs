@@ -1,0 +1,45 @@
+body {
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+    background-color: #dae0ff;
+    margin: 0;
+    padding: 0;
+}
+
+#usersContainer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    margin: 20px;
+}
+
+.userCard {
+    background-color: #dfe4ff;
+    border: 1px solid #a9b8fe;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px #002aff;
+    padding: 20px 50px;
+    text-align: center;
+}
+
+.userPicture {
+    max-width: 100%;
+    border-radius: 50%;
+}
+
+p {
+    margin: 10px 0;
+    font-size: 18px;
+}
+
+#fetchButton {
+    display: block;
+    margin: 20px auto;
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #3c5cff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
