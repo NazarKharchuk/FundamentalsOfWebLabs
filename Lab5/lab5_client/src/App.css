@@ -1,0 +1,28 @@
+input.greenBG {
+  background-color: palegreen;
+}
+
+input.redBG {
+  background-color: lightpink;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+table {
+  width: 100%;
+}
+
+td,
+th {
+  border: 1px solid black;
+}
+
+.myForm {
+  display: flex;
+  flex-direction: column;
+  margin: 0 25%;
+}
