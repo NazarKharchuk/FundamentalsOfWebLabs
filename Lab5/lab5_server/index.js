@@ -1,7 +1,8 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
-const fs = require('fs');
+const crypto = require('crypto');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const app = express();
 
@@ -11,156 +12,169 @@ const EXPIRE_TIME = '60m';
 
 app.use(bodyParser.json());
 
-let users = [];
+const uri = "mongodb+srv://nazarkharchuk:F1WkRfXpWPnBzhhb@cluster0.rafwxex.mongodb.net/?retryWrites=true&w=majority";
 
-function saveUsersToFile() {
-    fs.writeFile('users.json', JSON.stringify(users), (err) => {
-        if (err) {
-            console.error('Помилка при збереженні користувачів:', err);
-        } else {
-        }
-    });
-}
-
-function loadUsersFromFile() {
-    fs.readFile('users.json', 'utf8', (err, data) => {
-        if (err) {
-            console.error('Помилка при завантаженні користувачів:', err);
-        } else {
-            users = JSON.parse(data);
-        }
-    });
-}
-
-loadUsersFromFile();
-
-const authMiddleware = async (req, res, next) => {
-    const token = req.headers['authorization'];
-
-    if (!token || token === 'undefined') {
-        return res.status(401).json({ error: 'Unauthorized' });
+const client = new MongoClient(uri, {
+    serverApi: {
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
     }
+});
 
-    const decodedToken = jwt.verify(token, SECRET_KEY);
-
-    if (!decodedToken) {
-        return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    req.username = decodedToken.username;
-    req.role = decodedToken.role;
-
-    next();
+const generateSalt = () => {
+    return crypto.randomBytes(16).toString('hex');
 };
 
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
+const hashPassword = (password, salt) => {
+    const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha512').toString('hex');
+    return hash;
+};
 
-    const user = users.find((user) => {
-        if (user.username === username && user.password === password) {
-            return true;
-        }
-        return false;
-    });
+const verifyPassword = (password, savedSalt, savedHashedPassword) => {
+    const hash = hashPassword(password, savedSalt);
+    return hash === savedHashedPassword;
+};
 
-    if (user) {
-        const payload = {
-            username: user.username,
-            role: user.role,
+client.connect()
+    .then(() => {
+        const db = client.db('database');
+        const usersCollection = db.collection('users');
+
+        const authMiddleware = async (req, res, next) => {
+            const token = req.headers['authorization'];
+
+            if (!token || token === 'undefined') {
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+
+            try {
+                const decodedToken = jwt.verify(token, SECRET_KEY);
+
+                if (!decodedToken) {
+                    return res.status(401).json({ error: 'Invalid token' });
+                }
+
+                req.username = decodedToken.username;
+                req.role = decodedToken.role;
+
+                next();
+            } catch (error) {
+                return res.status(401).json({ error: 'Invalid token' });
+            }
         };
 
-        const jwt_token = jwt.sign(payload, SECRET_KEY, { expiresIn: EXPIRE_TIME });
+        app.post('/api/login', async (req, res) => {
+            const { username, password } = req.body;
 
-        res.json({ username: user.username, role: user.role, token: jwt_token, exp: EXPIRE_TIME });
-        return;
-    }
+            const user = await usersCollection.findOne({ username });
 
-    res.status(401).json({ message: 'Доступ заборонено' });
-});
+            if (!user || !verifyPassword(password, user.salt, user.password)) {
+                return res.status(401).json({ message: 'Authentication failed' });
+            }
 
-app.post('/api/register', async (req, res) => {
-    const { username, password, fullName, group, phone, address, email } = req.body;
+            const payload = {
+                username: user.username,
+                role: user.role,
+            };
 
-    try {
-        const existingUser = users.find((user) => user.username === username);
-        if (existingUser) {
-            return res.status(400).json({ message: 'Користувач з таким ім\'ям вже існує' });
-        }
+            const jwt_token = jwt.sign(payload, SECRET_KEY, { expiresIn: EXPIRE_TIME });
 
-        users.push({ username, password, fullName, group, phone, address, email, role: 'user' });
-        saveUsersToFile();
+            res.json({ username: user.username, role: user.role, token: jwt_token, exp: EXPIRE_TIME });
+        });
 
-        res.status(201).json({ message: 'Користувач створений' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Помилка сервера' });
-    }
-});
+        app.post('/api/register', async (req, res) => {
+            const { username, password, fullName, group, phone, address, email } = req.body;
+            const salt = generateSalt();
+            const hashedPassword = hashPassword(password, salt);
 
-app.get('/api/user', authMiddleware, (req, res) => {
 
-    const userWithoutPasswords = users.map((user) => ({
-        username: user.username,
-        role: user.role,
-        fullName: user.fullName,
-        group: user.group,
-        phone: user.phone,
-        address: user.address,
-        email: user.email,
-    })).find((user) => user.username === req.username);
+            const existingUser = await usersCollection.findOne({ username });
 
-    res.json(userWithoutPasswords);
-});
+            if (existingUser) {
+                return res.status(400).json({ message: 'Користувач з таким ім\'ям вже існує' });
+            }
 
-app.get('/api/users', authMiddleware, (req, res) => {
-    if (req.role !== 'admin') {
-        return res.status(403).json({ error: 'Доступ заборонено' });
-    }
+            const newUser = {
+                username,
+                password: hashedPassword,
+                salt,
+                fullName,
+                group,
+                phone,
+                address,
+                email,
+                role: 'user'
+            };
+            await usersCollection.insertOne(newUser);
+            res.status(201).json({ message: 'Користувач створений' });
 
-    const userWithoutPasswords = users.map((user) => ({
-        username: user.username,
-        role: user.role,
-        fullName: user.fullName,
-        group: user.group,
-        phone: user.phone,
-        address: user.address,
-        email: user.email,
-    }));
-    res.json(userWithoutPasswords);
-});
+        });
 
-app.post('/verify-token', (req, res) => {
-    const { token } = req.body;
+        app.get('/api/user', authMiddleware, async (req, res) => {
+            const user = await usersCollection.findOne({ username: req.username });
+            if (!user) {
+                return res.status(404).json({ error: 'User not found' });
+            }
 
-    try {
-        const decoded = jwt.verify(token, SECRET_KEY);
+            const userWithoutPasswords = {
+                username: user.username,
+                role: user.role,
+                fullName: user.fullName,
+                group: user.group,
+                phone: user.phone,
+                address: user.address,
+                email: user.email,
+            };
 
-        res.json({ isValid: true, decodedData: decoded });
-    } catch (error) {
-        res.json({ isValid: false, error: 'Недійсний токен або помилка перевірки' });
-    }
-});
+            res.json(userWithoutPasswords);
+        });
 
-/*app.put('/api/users/:username', authMiddleware, (req, res) => {
-    if (req.role !== 'admin') {
-        return res.status(403).json({ error: 'Доступ заборонено' });
-    }
+        app.get('/api/users', authMiddleware, async (req, res) => {
+            if (req.role !== 'admin') {
+                return res.status(403).json({ error: 'Доступ заборонено' });
+            }
 
-    const { username } = req.params;
-    const { newUsername } = req.body;
+            const userList = await usersCollection.find({}, { projection: { password: 0, salt: 0, fullName: 0, group: 0, phone: 0, address: 0, email: 0 } }).toArray();
+            res.json(userList);
+        });
 
-    const user = users.find((user) => user.username === username);
+        app.post('/verify-token', (req, res) => {
+            const { token } = req.body;
 
-    if (!user) {
-        return res.status(404).json({ error: 'Користувач не знайдений' });
-    }
+            try {
+                const decoded = jwt.verify(token, SECRET_KEY);
 
-    user.username = newUsername;
-    saveUsersToFile();
+                res.json({ isValid: true, decodedData: decoded });
+            } catch (error) {
+                res.json({ isValid: false, error: 'Недійсний токен або помилка перевірки' });
+            }
+        });
 
-    res.json({ message: 'Логін користувача оновлено', user: user });
-});*/
+        /*app.put('/api/users/:username', authMiddleware, (req, res) => {
+            if (req.role !== 'admin') {
+                return res.status(403).json({ error: 'Доступ заборонено' });
+            }
+        
+            const { username } = req.params;
+            const { newUsername } = req.body;
+        
+            const user = users.find((user) => user.username === username);
+        
+            if (!user) {
+                return res.status(404).json({ error: 'Користувач не знайдений' });
+            }
+        
+            user.username = newUsername;
+            saveUsersToFile();
+        
+            res.json({ message: 'Логін користувача оновлено', user: user });
+        });*/
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+        app.listen(PORT, () => {
+            console.log(`Server is running on port ${PORT}`);
+        });
+    })
+    .catch(err => {
+        console.error('MongoDB connection error:', err);
+    });
